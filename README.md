@@ -1,7 +1,7 @@
-[![Build Status](https://travis-ci.org/miekg/dns.svg?branch=master)](https://travis-ci.org/miekg/dns)
-[![Code Coverage](https://img.shields.io/codecov/c/github/miekg/dns/master.svg)](https://codecov.io/github/miekg/dns?branch=master)
-[![Go Report Card](https://goreportcard.com/badge/github.com/miekg/dns)](https://goreportcard.com/report/miekg/dns)
-[![](https://godoc.org/github.com/miekg/dns?status.svg)](https://godoc.org/github.com/miekg/dns)
+[![Build Status](https://travis-ci.org/kayabe/dns.svg?branch=master)](https://travis-ci.org/kayabe/dns)
+[![Code Coverage](https://img.shields.io/codecov/c/github/kayabe/dns/master.svg)](https://codecov.io/github/kayabe/dns?branch=master)
+[![Go Report Card](https://goreportcard.com/badge/github.com/kayabe/dns)](https://goreportcard.com/report/kayabe/dns)
+[![](https://godoc.org/github.com/kayabe/dns?status.svg)](https://godoc.org/github.com/kayabe/dns)
 
 # Alternative (more granular) approach to a DNS library
 
@@ -103,13 +103,13 @@ DNS Authors 2012-
 This library uses Go modules and uses semantic versioning. Building is done with the `go` tool, so
 the following should work:
 
-    go get github.com/miekg/dns
-    go build github.com/miekg/dns
+    go get github.com/kayabe/dns
+    go build github.com/kayabe/dns
 
 ## Examples
 
 A short "how to use the API" is at the beginning of doc.go (this also will show when you call `godoc
-github.com/miekg/dns`).
+github.com/kayabe/dns`).
 
 Example programs can be found in the `github.com/miekg/exdns` repository.
 

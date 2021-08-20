@@ -292,7 +292,7 @@ func (srv *Server) ListenAndServe() error {
 
 	switch srv.Net {
 	case "tcp", "tcp4", "tcp6":
-		l, err := listenTCP(srv.Net, addr, srv.ReusePort)
+		l, err := ListenTCP(srv.Net, addr, srv.ReusePort)
 		if err != nil {
 			return err
 		}
@@ -305,7 +305,7 @@ func (srv *Server) ListenAndServe() error {
 			return errors.New("dns: neither Certificates nor GetCertificate set in Config")
 		}
 		network := strings.TrimSuffix(srv.Net, "-tls")
-		l, err := listenTCP(network, addr, srv.ReusePort)
+		l, err := ListenTCP(network, addr, srv.ReusePort)
 		if err != nil {
 			return err
 		}
@@ -315,7 +315,7 @@ func (srv *Server) ListenAndServe() error {
 		unlock()
 		return srv.serveTCP(l)
 	case "udp", "udp4", "udp6":
-		l, err := listenUDP(srv.Net, addr, srv.ReusePort)
+		l, err := ListenUDP(srv.Net, addr, srv.ReusePort)
 		if err != nil {
 			return err
 		}
@@ -329,6 +329,53 @@ func (srv *Server) ListenAndServe() error {
 		unlock()
 		return srv.serveUDP(u)
 	}
+	return &Error{err: "bad network"}
+}
+
+// Serve starts a nameserver on the configured address in *Server.
+func (srv *Server) Serve(l interface{}) error {
+	unlock := unlockOnce(&srv.lock)
+	srv.lock.Lock()
+	defer unlock()
+
+	if srv.started {
+		return &Error{err: "server already started"}
+	}
+
+	addr := srv.Addr
+	if addr == "" {
+		addr = ":domain"
+	}
+
+	srv.init()
+
+	switch srv.Net {
+	case "tcp", "tcp4", "tcp6":
+		srv.Listener = l.(net.Listener)
+		srv.started = true
+		unlock()
+		return srv.serveTCP(srv.Listener)
+	case "tcp-tls", "tcp4-tls", "tcp6-tls":
+		if srv.TLSConfig == nil || (len(srv.TLSConfig.Certificates) == 0 && srv.TLSConfig.GetCertificate == nil) {
+			return errors.New("dns: neither Certificates nor GetCertificate set in Config")
+		}
+		lt := tls.NewListener(l.(net.Listener), srv.TLSConfig)
+		srv.Listener = lt
+		srv.started = true
+		unlock()
+		return srv.serveTCP(srv.Listener)
+	case "udp", "udp4", "udp6":
+		u := l.(*net.UDPConn)
+		if e := setUDPSocketOptions(u); e != nil {
+			u.Close()
+			return e
+		}
+		srv.PacketConn = l.(net.PacketConn)
+		srv.started = true
+		unlock()
+		return srv.serveUDP(u)
+	}
+
 	return &Error{err: "bad network"}
 }
 

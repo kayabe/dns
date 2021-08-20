@@ -1,12 +1,18 @@
+//go:build !go1.11 || (!aix && !darwin && !dragonfly && !freebsd && !linux && !netbsd && !openbsd)
 // +build !go1.11 !aix,!darwin,!dragonfly,!freebsd,!linux,!netbsd,!openbsd
 
 package dns
 
-import "net"
+import (
+	"net"
+	"strings"
+)
 
 const supportsReusePort = false
 
-func listenTCP(network, addr string, reuseport bool) (net.Listener, error) {
+func ListenTCP(network, addr string, reuseport bool) (net.Listener, error) {
+	network = strings.TrimSuffix(network, "-tls")
+
 	if reuseport {
 		// TODO(tmthrgd): return an error?
 	}
@@ -14,7 +20,9 @@ func listenTCP(network, addr string, reuseport bool) (net.Listener, error) {
 	return net.Listen(network, addr)
 }
 
-func listenUDP(network, addr string, reuseport bool) (net.PacketConn, error) {
+func ListenUDP(network, addr string, reuseport bool) (net.PacketConn, error) {
+	network = strings.TrimSuffix(network, "-tls")
+
 	if reuseport {
 		// TODO(tmthrgd): return an error?
 	}
