@@ -6,7 +6,6 @@ package dns
 import (
 	"context"
 	"net"
-	"strings"
 	"syscall"
 
 	"golang.org/x/sys/unix"
