@@ -228,6 +228,11 @@ type Server struct {
 	// By default DefaultMsgAcceptFunc will be used.
 	MsgAcceptFunc MsgAcceptFunc
 
+	// WrapPacketConn
+	WrapPacketConn func(net.PacketConn) net.PacketConn
+	// WrapConn
+	WrapConn func(net.Conn) net.Conn
+
 	// Shutdown handling
 	lock     sync.RWMutex
 	started  bool
@@ -452,6 +457,9 @@ func (srv *Server) serveTCP(l net.Listener) error {
 			}
 			return err
 		}
+		if srv.WrapConn != nil {
+			rw = srv.WrapConn(rw)
+		}
 		srv.lock.Lock()
 		// Track the connection to allow unblocking reads on shutdown.
 		srv.conns[rw] = struct{}{}
@@ -470,6 +478,10 @@ func (srv *Server) serveUDP(l net.PacketConn) error {
 	reader := Reader(defaultReader{srv})
 	if srv.DecorateReader != nil {
 		reader = srv.DecorateReader(reader)
+	}
+
+	if srv.WrapPacketConn != nil {
+		l = srv.WrapPacketConn(l)
 	}
 
 	lUDP, isUDP := l.(*net.UDPConn)
