@@ -333,7 +333,7 @@ func (srv *Server) ListenAndServe() error {
 }
 
 // ListenWrapAndServe starts a nameserver on the configured address in *Server.
-func (srv *Server) ListenWrapAndServe(wrap func(interface{})) error {
+func (srv *Server) ListenWrapAndServe(wrap func(interface{}) interface{}) error {
 	unlock := unlockOnce(&srv.lock)
 	srv.lock.Lock()
 	defer unlock()
@@ -355,7 +355,7 @@ func (srv *Server) ListenWrapAndServe(wrap func(interface{})) error {
 		if err != nil {
 			return err
 		}
-		wrap(&l)
+		l = wrap(l).(net.Listener)
 		srv.Listener = l
 		srv.started = true
 		unlock()
@@ -369,7 +369,7 @@ func (srv *Server) ListenWrapAndServe(wrap func(interface{})) error {
 		if err != nil {
 			return err
 		}
-		wrap(&l)
+		l = wrap(l).(net.Listener)
 		l = tls.NewListener(l, srv.TLSConfig)
 		srv.Listener = l
 		srv.started = true
@@ -380,7 +380,7 @@ func (srv *Server) ListenWrapAndServe(wrap func(interface{})) error {
 		if err != nil {
 			return err
 		}
-		wrap(&l)
+		l = wrap(l).(net.PacketConn)
 		u := l.(*net.UDPConn)
 		if e := setUDPSocketOptions(u); e != nil {
 			u.Close()
