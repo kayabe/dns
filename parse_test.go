@@ -1098,18 +1098,41 @@ func TestTXT(t *testing.T) {
 		}
 	}
 
-	// Test TXT record with chunk larger than 255 bytes, they should be split up, by the parser
-	s := ""
-	for i := 0; i < 255; i++ {
-		s += "a"
-	}
-	s += "b"
-	rr, err = NewRR(`test.local. 60 IN TXT "` + s + `"`)
+	// Test TXT record with string larger than 255 bytes that should be split
+	// up by the parser. Add some escape sequences too to ensure their length
+	// is counted correctly.
+	s := `"\;\\\120` + strings.Repeat("a", 255) + `b"`
+	rr, err = NewRR(`test.local. 60 IN TXT ` + s)
 	if err != nil {
 		t.Error("failed to parse empty-string TXT record", err)
 	}
-	if rr.(*TXT).Txt[1] != "b" {
-		t.Errorf("Txt should have two chunk, last one my be 'b', but is %s", rr.(*TXT).Txt[1])
+	if rr.(*TXT).Txt[1] != "aaab" {
+		t.Errorf("Txt should have two strings, last one must be 'aaab', but is %s", rr.(*TXT).Txt[1])
+	}
+	rrContent := strings.Replace(rr.String(), rr.Header().String(), "", 1)
+	expectedRRContent := `";\\x` + strings.Repeat("a", 252) + `" "aaab"`
+	if expectedRRContent != rrContent {
+		t.Errorf("Expected TXT RR content to be %#q but got %#q", expectedRRContent, rrContent)
+	}
+
+	// Test TXT record that is already split up into strings of len <= 255.
+	s = fmt.Sprintf(
+		"%q %q %q %q %q %q",
+		strings.Repeat(`a`, 255),
+		strings.Repeat("b", 255),
+		strings.Repeat("c", 255),
+		strings.Repeat("d", 0),
+		strings.Repeat("e", 1),
+		strings.Repeat("f", 123),
+	)
+	rr, err = NewRR(`test.local. 60 IN TXT ` + s)
+	if err != nil {
+		t.Error("failed to parse empty-string TXT record", err)
+	}
+	rrContent = strings.Replace(rr.String(), rr.Header().String(), "", 1)
+	expectedRRContent = s // same as input
+	if expectedRRContent != rrContent {
+		t.Errorf("Expected TXT RR content to be %#q but got %#q", expectedRRContent, rrContent)
 	}
 }
 
@@ -1450,6 +1473,23 @@ func TestParseHINFO(t *testing.T) {
 	}
 }
 
+func TestParseISDN(t *testing.T) {
+	dt := map[string]string{
+		"example.net. ISDN A B":         "example.net.	3600	IN	ISDN	\"A\" \"B\"",
+		"example.net. ISDN \"A\" \"B\"": "example.net.	3600	IN	ISDN	\"A\" \"B\"",
+	}
+	for i, o := range dt {
+		rr, err := NewRR(i)
+		if err != nil {
+			t.Error("failed to parse RR: ", err)
+			continue
+		}
+		if rr.String() != o {
+			t.Errorf("`%s' should be equal to\n`%s', but is     `%s'", i, o, rr.String())
+		}
+	}
+}
+
 func TestParseCAA(t *testing.T) {
 	lt := map[string]string{
 		"example.net.	CAA	0 issue \"symantec.com\"":            "example.net.\t3600\tIN\tCAA\t0 issue \"symantec.com\"",
@@ -1569,7 +1609,18 @@ func TestParseSVCB(t *testing.T) {
 		// From draft-ietf-add-ddr-06
 		`_dns.example.net. SVCB 1 example.net. alpn=h2 dohpath=/dns-query{?dns}`:     `_dns.example.net.	3600	IN	SVCB	1 example.net. alpn="h2" dohpath="/dns-query{?dns}"`,
 		`_dns.example.net. SVCB 1 example.net. alpn=h2 dohpath=/dns\045query{\?dns}`: `_dns.example.net.	3600	IN	SVCB	1 example.net. alpn="h2" dohpath="/dns-query{?dns}"`,
+		// From RFC9461 Section 7 (https://datatracker.ietf.org/doc/html/rfc9461#section-7)
+		`_dns.simple.example. 7200 IN SVCB 1 simple.example. alpn=dot`:                                 `_dns.simple.example.	7200	IN	SVCB	1 simple.example. alpn="dot"`,
+		`_dns.doh.example. 7200 IN SVCB 1 doh.example. alpn=h2 dohpath=/dns-query{?dns}`:               `_dns.doh.example.	7200	IN	SVCB	1 doh.example. alpn="h2" dohpath="/dns-query{?dns}"`,
+		`_dns.resolver.example.  7200 IN SVCB 1 resolver.example. alpn=dot,doq,h2,h3 dohpath=/q{?dns}`: `_dns.resolver.example.	7200	IN	SVCB	1 resolver.example. alpn="dot,doq,h2,h3" dohpath="/q{?dns}"`,
+		`_dns.resolver.example.  7200 IN SVCB 2 resolver.example. alpn=dot port=8530`:                  `_dns.resolver.example.	7200	IN	SVCB	2 resolver.example. alpn="dot" port="8530"`,
+		// From RFC 9540 Section 4.2.1 (https://www.rfc-editor.org/rfc/rfc9540.html#name-the-ohttp-svcparamkey)
+		`_dns.resolver.arpa  7200  IN SVCB 1 doh.example.net alpn=h2 dohpath=/dns-query{?dns} ohttp`: `_dns.resolver.arpa.	7200	IN	SVCB	1 doh.example.net. alpn="h2" dohpath="/dns-query{?dns}" ohttp=""`,
+		// From RFC 9540 Section 4.1 (HTTPS RR) (https://www.rfc-editor.org/rfc/rfc9540.html#name-use-in-https-service-rrs)
+		`svc.example.com. 7200  IN HTTPS 1 . alpn=h2 ohttp`:         `svc.example.com.	7200	IN	HTTPS	1 . alpn="h2" ohttp=""`,
+		`svc.example.com. 7200  IN HTTPS 1 . mandatory=ohttp ohttp`: `svc.example.com.	7200	IN	HTTPS	1 . mandatory="ohttp" ohttp=""`,
 	}
+
 	for s, o := range svcbs {
 		rr, err := NewRR(s)
 		if err != nil {
